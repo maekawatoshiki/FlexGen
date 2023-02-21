@@ -2,8 +2,17 @@
 import argparse
 
 from transformers import AutoTokenizer
-from flexgen.flex_opt import (Policy, OptLM, TorchDevice, TorchDisk, TorchMixedDevice,
-    CompressionConfig, Env, Task, get_opt_config)
+from flexgen.flex_opt import (
+    Policy,
+    OptLM,
+    TorchDevice,
+    TorchDisk,
+    TorchMixedDevice,
+    CompressionConfig,
+    Env,
+    Task,
+    get_opt_config,
+)
 
 
 def main(args):
@@ -14,20 +23,29 @@ def main(args):
     env = Env(gpu=gpu, cpu=cpu, disk=disk, mixed=TorchMixedDevice([gpu, cpu, disk]))
 
     # Offloading policy
-    policy = Policy(1, 1,
-                    args.percent[0], args.percent[1],
-                    args.percent[2], args.percent[3],
-                    args.percent[4], args.percent[5],
-                    overlap=True, sep_layer=True, pin_weight=True,
-                    cpu_cache_compute=False, attn_sparsity=1.0,
-                    compress_weight=args.compress_weight,
-                    comp_weight_config=CompressionConfig(
-                        num_bits=4, group_size=64,
-                        group_dim=0, symmetric=False),
-                    compress_cache=args.compress_cache,
-                    comp_cache_config=CompressionConfig(
-                        num_bits=4, group_size=64,
-                        group_dim=2, symmetric=False))
+    policy = Policy(
+        1,
+        1,
+        args.percent[0],
+        args.percent[1],
+        args.percent[2],
+        args.percent[3],
+        args.percent[4],
+        args.percent[5],
+        overlap=True,
+        sep_layer=True,
+        pin_weight=True,
+        cpu_cache_compute=False,
+        attn_sparsity=1.0,
+        compress_weight=args.compress_weight,
+        comp_weight_config=CompressionConfig(
+            num_bits=4, group_size=64, group_dim=0, symmetric=False
+        ),
+        compress_cache=args.compress_cache,
+        comp_cache_config=CompressionConfig(
+            num_bits=4, group_size=64, group_dim=2, symmetric=False
+        ),
+    )
 
     # Model
     tokenizer = AutoTokenizer.from_pretrained("facebook/opt-30b", padding_side="left")
@@ -62,16 +80,17 @@ def main(args):
             do_sample=True,
             temperature=0.7,
             max_new_tokens=96,
-            stop=stop)
+            stop=stop,
+        )
         outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0]
         try:
             index = outputs.index("\n", len(context))
         except ValueError:
             outputs += "\n"
             index = outputs.index("\n", len(context))
-        
-        outputs = outputs[:index + 1]
-        print(outputs[len(context):], end="")
+
+        outputs = outputs[: index + 1]
+        print(outputs[len(context) :], end="")
         context = outputs
 
     # TODO: optimize the performance by reducing redundant computation.
@@ -83,26 +102,41 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", type=str, default="facebook/opt-6.7b",
-        help="The model name.")
-    parser.add_argument("--path", type=str, default="~/opt_weights",
+    parser.add_argument(
+        "--model", type=str, default="facebook/opt-6.7b", help="The model name."
+    )
+    parser.add_argument(
+        "--path",
+        type=str,
+        default="~/opt_weights",
         help="The path to the model weights. If there are no cached weights, "
-             "FlexGen will automatically download them from HuggingFace.")
-    parser.add_argument("--offload-dir", type=str, default="~/flexgen_offload_dir",
-        help="The directory to offload tensors. ")
-    parser.add_argument("--percent", nargs="+", type=int,
-        default=[100, 0, 100, 0, 100, 0],
+        "FlexGen will automatically download them from HuggingFace.",
+    )
+    parser.add_argument(
+        "--offload-dir",
+        type=str,
+        default="~/flexgen_offload_dir",
+        help="The directory to offload tensors. ",
+    )
+    parser.add_argument(
+        "--percent",
+        nargs="+",
+        type=int,
+        default=[25, 75, 100, 0, 100, 0],  # NOTE: This setting is fine on my machine.
         help="Six numbers. They are "
-         "the percentage of weight on GPU, "
-         "the percentage of weight on CPU, "
-         "the percentage of attention cache on GPU, "
-         "the percentage of attention cache on CPU, "
-         "the percentage of activations on GPU, "
-         "the percentage of activations on CPU")
-    parser.add_argument("--compress-weight", action="store_true",
-        help="Whether to compress weight.")
-    parser.add_argument("--compress-cache", action="store_true",
-        help="Whether to compress cache.")
+        "the percentage of weight on GPU, "
+        "the percentage of weight on CPU, "
+        "the percentage of attention cache on GPU, "
+        "the percentage of attention cache on CPU, "
+        "the percentage of activations on GPU, "
+        "the percentage of activations on CPU",
+    )
+    parser.add_argument(
+        "--compress-weight", action="store_true", help="Whether to compress weight."
+    )
+    parser.add_argument(
+        "--compress-cache", action="store_true", help="Whether to compress cache."
+    )
     args = parser.parse_args()
 
     assert len(args.percent) == 6
